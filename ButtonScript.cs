@@ -49,6 +49,7 @@ public class ButtonScript : MonoBehaviour
     {
         try
         {
+            Application.targetFrameRate = 360;
 #if PLATFORM_ANDROID
             isAndroid = true;
 #endif

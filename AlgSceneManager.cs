@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using TMPro;
 using UnityEngine;
@@ -19,11 +20,16 @@ public class AlgSceneManager : MonoBehaviour
             if (isLog && ButtonScript.isAndroid) {
                 SceneManager.LoadScene("AlgScene");
                 return; 
+            } else if (isLog)
+            {
+                SceneManager.LoadScene("AlgScene");
+                Process.Start(algorithmFilePath);
+                return;
             }
             string algorithm = File.ReadAllText(algorithmFilePath).Replace("\r", "");
             GameObject.Find("InputField").GetComponent<TMP_InputField>().text = algorithm;
             GameObject.Find("Title").GetComponent<TMP_Text>().text = $"알고리즘 편집 : {algName}";
-            if (isLog) GameObject.Find("Title").GetComponent<TMP_Text>().text = $"Log";
+            //.if (isLog) GameObject.Find("Title").GetComponent<TMP_Text>().text = $"Log";
         }
         catch (Exception e)
         {

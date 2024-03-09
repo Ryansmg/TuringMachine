@@ -121,18 +121,25 @@ public class Main : MonoBehaviour
                 preStatusSet = true;
                 preStatus = currentStatus;
             }
+            int errorDisplayLine = currentLine;
             currentLine = 0;
             try { while (!algorithm[currentLine].Equals($":{currentStatus}")) currentLine++; }
             catch (IndexOutOfRangeException) { 
                 string temp = currentStatus;
                 currentStatus = preStatus;
-                HandleError($"상태({temp})를 찾을 수 없습니다.","없는 상태나 다른 알고리즘의 상태로 이동하려고 시도했습니다."); 
+                HandleError($"상태({temp})를 찾을 수 없습니다.","없는 상태나 다른 알고리즘의 상태로 이동하려고 시도했습니다.", errorDisplayLine); 
                 return; }
             statusUpdated = false;
         }
 
         currentLine++;
-        Execute(algorithm[currentLine]);
+        try
+        {
+            Execute(algorithm[currentLine]);
+        } catch(StackOverflowException)
+        {
+            HandleError("반복이 종료되지 않음을 감지했습니다.", "goto 코드가 무한히 실행되고 있거나 연속해서 너무 많이 실행되었습니다.");
+        }
 
         if (showResult && (!isStopped)) Update();
     }
@@ -252,7 +259,7 @@ public class Main : MonoBehaviour
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    public void HandleError(string errorDescription, string cause)
+    public void HandleError(string errorDescription, string cause, int lineNum)
     {
         ErrorManager.errorDescription = errorDescription;
         ErrorManager.cause = cause;
@@ -271,10 +278,17 @@ public class Main : MonoBehaviour
         ErrorManager.contentStr = contentStr;
         ErrorManager.algName = algorithmName;
         ErrorManager.algStatus = currentStatus;
-        ErrorManager.algLine = (currentLine + 1) + "";
+        ErrorManager.algLine = (lineNum + 1) + "";
         ErrorManager.algIndex = currentIndex + "";
         showResult = false;
         SceneManager.LoadScene("ErrorScene");
+    }
+    /// <summary>
+    /// set cause to "internal" to hide needless UI.
+    /// </summary>
+    public void HandleError(string errorDescription, string cause)
+    {
+        HandleError(errorDescription, cause, currentLine);
     }
     /// <summary>
     /// set cause to "internal" to hide needless UI.
