@@ -4,14 +4,22 @@ using UnityEngine;
 
 public class CameraManager : MonoBehaviour
 {
-    public static Vector3 velocity = Vector3.zero;
+    private static Vector3 _velocity = Vector3.zero;
     public GameObject scripts;
     public float smoothness;
     public static bool moveCamera = true;
+
+    private Main _main;
+
     // Update is called once per frame
-    void LateUpdate()
+    private void Start()
+    {
+        _main = scripts.GetComponent<Main>();
+    }
+
+    private void LateUpdate()
     {
         if (!moveCamera) return;
-        transform.position = Vector3.SmoothDamp(transform.position, new Vector3(scripts.GetComponent<Main>().currentIndex, 0, -10), ref velocity, smoothness);
+        transform.position = Vector3.SmoothDamp(transform.position, new Vector3(_main.currentIndex, 0, -10), ref _velocity, smoothness);
     }
 }

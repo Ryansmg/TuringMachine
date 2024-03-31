@@ -1,37 +1,38 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using TMPro;
+using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 public class Main : MonoBehaviour
 {
     public static int[] content = { -1, 3, 2, -1, 1, 1, -1 }; //this given value is a placeholder
-    public static GameObject[] grids;
     public static int startIndex = 1; //this given value is a placeholder
     public static string algorithmName = "sum"; //this given value is a placeholder
     public static string[] algorithm;
 
     public string preAlgName = "placeHolder";
-    public bool preAlgNameSet = false;
+    public bool preAlgNameSet;
     public string preStatus = "placeHolder";
-    public bool preStatusSet = false;
+    public bool preStatusSet;
 
     public int currentIndex; //content
     public int currentLine; //algorithm
     public string currentStatus;
     public bool statusUpdated;
-    public bool algorithmUpdated;
+    public bool needAlgorithmUpdate;
 
     public bool isStopped;
     public bool executeOnce;
     public bool executeContinuously;
     public bool executeFast;
-    public bool showResult;
-
+    public bool executeVeryFast;
+    public bool errorOnVeryFast;
+    
     /// <summary>
     /// preset
     /// </summary>
@@ -42,21 +43,65 @@ public class Main : MonoBehaviour
     /// <summary>
     /// add "{returnIndex},{returnAlgorithmName}"
     /// </summary>
-    public ArrayList returnAlg = new();
+    public List<string> returnAlg = new();
 
-    public bool openPersistentDataPath = false;
+    public bool openPersistentDataPath;
+    public string appPersDataPath;
 
     public static bool logExecution = false;
 
-    void Start()
+    public Button leftButton, rightButton;
+    private Dictionary<string, string[]> _loadedAlgorithms;
+    private void LoadAlgorithm()
+    {
+        if (!preAlgNameSet)
+        {
+            preAlgNameSet = true;
+            preAlgName = algorithmName;
+        }
+        //Debug.Log($"Trying to load from loadedAlgorithms: {algorithmName}");
+        if (_loadedAlgorithms.TryGetValue(algorithmName, out algorithm))
+        {
+            //Debug.Log($"Loaded {algorithmName}.");
+            currentStatus = ReplaceFirst(algorithm[0], "startAt ", "");
+            needAlgorithmUpdate = false;
+            return;
+        }
+        string algorithmFilePath = appPersDataPath + $"/algorithms/{algorithmName}.txt";
+        if (!File.Exists(algorithmFilePath))
+        {
+            string temp = algorithmName;
+            algorithmName = preAlgName;
+            HandleError($"ì•Œê³ ë¦¬ì¦˜({temp})ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.",
+                "ì´ë¦„ì„ ì˜ëª» ì…ë ¥í–ˆê±°ë‚˜, ì•Œê³ ë¦¬ì¦˜ì„ ì˜ëª»ëœ ë°©ë²•ìœ¼ë¡œ ìƒì„±í–ˆìŠµë‹ˆë‹¤. ë„ì›€ë§ì„ ì°¸ê³ í•˜ì„¸ìš”.");
+            return;
+        }
+        algorithm = File.ReadAllText(algorithmFilePath).Replace("\r", "").Split("\n");
+        if (algorithm[0].StartsWith("startAt ")) { currentStatus = ReplaceFirst(algorithm[0], "startAt ", ""); }
+        else
+        {
+            currentLine = 0;
+            currentStatus = "";
+            HandleError("startAt í‚¤ì›Œë“œê°€ ì¡´ì¬í•˜ì§€ ì•ŠìŠµë‹ˆë‹¤.", "startAtì„ ì…ë ¥í•˜ì§€ ì•Šì•˜ê±°ë‚˜, ì²« ì¤„ì— ì£¼ì„ì´ ìˆìŠµë‹ˆë‹¤.\nì²« ì¤„ì—ëŠ” í•­ìƒ startAt í‚¤ì›Œë“œê°€ ìˆì–´ì•¼ í•©ë‹ˆë‹¤.");
+            return;
+        }
+        _loadedAlgorithms.Add(algorithmName, (string[]) algorithm.Clone());
+        needAlgorithmUpdate = false;
+    }
+
+    private void Start()
     {
         currentIndex = startIndex;
         currentLine = 0;
         isStopped = false;
         statusUpdated = true;
-        algorithmUpdated = true;
-        grids = new GameObject[content.Length];
+        needAlgorithmUpdate = true;
+        _evfThreadGen = false;
+        endVft = false;
         continuousExecutionTimer = continuousExecutionTime;
+        appPersDataPath = Application.persistentDataPath;
+        _loadedAlgorithms = new();
+        _gotoLoop = 0;
         for(int i = 0; i < content.Length; i++)
         {
             GameObject newGrid = Instantiate(gridPrefab);
@@ -67,10 +112,46 @@ public class Main : MonoBehaviour
         }
     }
 
+    private bool _evfThreadGen;
+
+    private void LoopExe()
+    {
+        while (!isStopped)
+        {
+            try {
+                Execute();
+            } catch(StackOverflowException) {
+                HandleError("ë°˜ë³µì´ ì¢…ë£Œë˜ì§€ ì•ŠìŒì„ ê°ì§€í–ˆìŠµë‹ˆë‹¤.", "goto ì½”ë“œê°€ ë¬´í•œíˆ ì‹¤í–‰ë˜ê³  ìˆê±°ë‚˜ ì—°ì†í•´ì„œ ë„ˆë¬´ ë§ì´ ì‹¤í–‰ë˜ì—ˆìŠµë‹ˆë‹¤. ë¹ ë¥¸ ì‹¤í–‰ì„ ì‚¬ìš©í•˜ì§€ ì•Šìœ¼ë©´ ë¬¸ì œê°€ í•´ê²°ë  ìˆ˜ë„ ìˆìŠµë‹ˆë‹¤.");
+            }
+        }
+    }
+
+    public static Thread veryFastThread;
+    public static bool endVft;
+
     private void Update()
     {
-        if(openPersistentDataPath) { openPersistentDataPath = false; Process.Start(Application.persistentDataPath); }
-        if(isStopped) return;
+        if(openPersistentDataPath) { openPersistentDataPath = false; Process.Start(appPersDataPath); }
+        if (errorOnVeryFast)
+        {
+            errorOnVeryFast = false;
+            executeVeryFast = false;
+            HandleError(_handleErrDesc, _handleErrCause, _handleErrLineNum);
+            return;
+        }
+        if (executeVeryFast && endVft) return;
+        if(isStopped) {
+            leftButton.interactable = rightButton.interactable = true;
+            return;
+        }
+        if (executeVeryFast)
+        {
+            if (_evfThreadGen) return;
+            _evfThreadGen = true;
+            veryFastThread = new Thread(LoopExe);
+            veryFastThread.Start();
+            return;
+        }
         if (!(executeOnce || executeContinuously || executeFast)) return;
         executeOnce = false;
         if(executeContinuously) {
@@ -83,37 +164,23 @@ public class Main : MonoBehaviour
                 return;
             }
         }
-
-        //¾Ë°í¸®Áò ·Îµå(º¯°æ ½Ã)
-        if (algorithmUpdated)
-        {
-            if (!preAlgNameSet)
-            {
-                preAlgNameSet = true;
-                preAlgName = algorithmName;
-            }
-            string algorithmFilePath = Application.persistentDataPath + $"/algorithms/{algorithmName}.txt";
-            if (!File.Exists(algorithmFilePath))
-            {
-                string temp = algorithmName;
-                algorithmName = preAlgName;
-                HandleError($"¾Ë°í¸®Áò({temp})À» Ã£À» ¼ö ¾ø½À´Ï´Ù.",
-                    "ÀÌ¸§À» Àß¸ø ÀÔ·ÂÇß°Å³ª, ¾Ë°í¸®ÁòÀ» Àß¸øµÈ ¹æ¹ıÀ¸·Î »ı¼ºÇß½À´Ï´Ù. µµ¿ò¸»À» Âü°íÇÏ¼¼¿ä.");
-                return;
-            }
-            algorithm = File.ReadAllText(algorithmFilePath).Replace("\r", "").Split("\n");
-            if (algorithm[0].StartsWith("startAt ")) { currentStatus = ReplaceFirst(algorithm[0], "startAt ", ""); }
-            else
-            {
-                currentLine = 0;
-                currentStatus = "";
-                HandleError("startAt Å°¿öµå°¡ Á¸ÀçÇÏÁö ¾Ê½À´Ï´Ù.", "startAtÀ» ÀÔ·ÂÇÏÁö ¾Ê¾Ò°Å³ª, Ã¹ ÁÙ¿¡ ÁÖ¼®ÀÌ ÀÖ½À´Ï´Ù.\nÃ¹ ÁÙ¿¡´Â Ç×»ó startAt Å°¿öµå°¡ ÀÖ¾î¾ß ÇÕ´Ï´Ù.");
-                return;
-            }
-            algorithmUpdated = false;
+        
+        try {
+            Execute();
+        } catch(StackOverflowException) {
+            HandleError("ë°˜ë³µì´ ì¢…ë£Œë˜ì§€ ì•ŠìŒì„ ê°ì§€í–ˆìŠµë‹ˆë‹¤.", "goto ì½”ë“œê°€ ë¬´í•œíˆ ì‹¤í–‰ë˜ê³  ìˆê±°ë‚˜ ì—°ì†í•´ì„œ ë„ˆë¬´ ë§ì´ ì‹¤í–‰ë˜ì—ˆìŠµë‹ˆë‹¤. ë¹ ë¥¸ ì‹¤í–‰ì„ ì‚¬ìš©í•˜ì§€ ì•Šìœ¼ë©´ ë¬¸ì œê°€ í•´ê²°ë  ìˆ˜ë„ ìˆìŠµë‹ˆë‹¤.");
         }
+    }
+    /// <summary>
+    /// Get ready for Execute()
+    /// </summary>
+    /// <returns>If PreExecution was successful (== Execute() is available)</returns>
+    private bool PreExecute()
+    {
+        //ë³€ê²½ ì‹œ ì•Œê³ ë¦¬ì¦˜ ë¡œë“œ
+        if (needAlgorithmUpdate) LoadAlgorithm();
 
-        //½ÇÇàÇØ¾ß ÇÒ lineÀ¸·Î ÀÌµ¿ (»óÅÂ º¯°æ ½Ã)
+        //ì‹¤í–‰í•´ì•¼ í•  lineìœ¼ë¡œ ì´ë™ (ìƒíƒœ ë³€ê²½ ì‹œ)
         if (statusUpdated)
         {
             if (!preStatusSet)
@@ -127,166 +194,208 @@ public class Main : MonoBehaviour
             catch (IndexOutOfRangeException) { 
                 string temp = currentStatus;
                 currentStatus = preStatus;
-                HandleError($"»óÅÂ({temp})¸¦ Ã£À» ¼ö ¾ø½À´Ï´Ù.","¾ø´Â »óÅÂ³ª ´Ù¸¥ ¾Ë°í¸®ÁòÀÇ »óÅÂ·Î ÀÌµ¿ÇÏ·Á°í ½ÃµµÇß½À´Ï´Ù.", errorDisplayLine); 
-                return; }
+                HandleError($"ìƒíƒœ({temp})ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤.","ì—†ëŠ” ìƒíƒœë‚˜ ë‹¤ë¥¸ ì•Œê³ ë¦¬ì¦˜ì˜ ìƒíƒœë¡œ ì´ë™í•˜ë ¤ê³  ì‹œë„í–ˆìŠµë‹ˆë‹¤.", errorDisplayLine); 
+                return false; 
+            }
             statusUpdated = false;
         }
 
         currentLine++;
-        try
-        {
-            Execute(algorithm[currentLine]);
-        } catch(StackOverflowException)
-        {
-            HandleError("¹İº¹ÀÌ Á¾·áµÇÁö ¾ÊÀ½À» °¨ÁöÇß½À´Ï´Ù.", "goto ÄÚµå°¡ ¹«ÇÑÈ÷ ½ÇÇàµÇ°í ÀÖ°Å³ª ¿¬¼ÓÇØ¼­ ³Ê¹« ¸¹ÀÌ ½ÇÇàµÇ¾ú½À´Ï´Ù.");
-        }
-
-        if (showResult && (!isStopped)) Update();
+        return true;
     }
 
-    public void Execute(string line)
+    private int _gotoLoop = 0;
+
+    private void Execute()
     {
+        bool preResult = PreExecute();
+        if (!preResult) return;
+        if (executeVeryFast && endVft) return;
+        String line = algorithm[currentLine];
+
         if (line.Equals("stop"))
         {
-            if(logExecution) UnityEngine.Debug.Log("stop");
+            if(logExecution) Debug.Log("stop");
             isStopped = true;
             return;
         }
-        else if (line.Equals("end"))
+
+        if (line.Equals("end"))
         {
-            if (logExecution) UnityEngine.Debug.Log("end");
+            if (logExecution) Debug.Log("end");
             if (returnAlg.Count == 0)
             {
                 isStopped = true;
                 return;
-            } else
+            }
+
+            needAlgorithmUpdate = true;
+            currentLine = int.Parse(returnAlg.ToArray()[returnAlg.Count - 1].Split(",,,")[0]);
+            algorithmName = returnAlg.ToArray()[returnAlg.Count - 1].Split(",,,")[1];
+            returnAlg.RemoveAt(returnAlg.Count - 1);
+            continuousExecutionTimer = 0;
+            if (!executeContinuously && !executeFast) executeOnce = true;
+            if (executeFast) Update();
+            return;
+        }
+        
+        if (line.StartsWith("goto "))
+        {
+            _gotoLoop++;
+            if (_gotoLoop > 2000000)
             {
-                algorithmUpdated = true;
-                currentLine = int.Parse(((string)returnAlg.ToArray()[returnAlg.Count - 1]).Split(",,,")[0]);
-                algorithmName = ((string)returnAlg.ToArray()[returnAlg.Count - 1]).Split(",,,")[1];
-                returnAlg.RemoveAt(returnAlg.Count - 1);
-                continuousExecutionTimer = 0;
-                if ((!executeContinuously) && (!executeFast)) executeOnce = true;
-                if (executeFast) Update();
+                HandleError("ë°˜ë³µì´ ì¢…ë£Œë˜ì§€ ì•ŠìŒì„ ê°ì§€í–ˆìŠµë‹ˆë‹¤.",
+                    "goto ì½”ë“œê°€ ë¬´í•œíˆ ì‹¤í–‰ë˜ê³  ìˆê±°ë‚˜ ì—°ì†í•´ì„œ ë„ˆë¬´ ë§ì´ (200ë§Œ ë²ˆ ì´ìƒ) ì‹¤í–‰ë˜ì—ˆìŠµë‹ˆë‹¤. ë¹ ë¥¸ ì‹¤í–‰ì„ ì‚¬ìš©í•˜ì§€ ì•Šìœ¼ë©´ ë¬¸ì œê°€ í•´ê²°ë  ìˆ˜ë„ ìˆìŠµë‹ˆë‹¤.");
                 return;
             }
-        }
-        else if (line.StartsWith("goto "))
-        {
-            if (logExecution) UnityEngine.Debug.Log("goto");
+
+            if (logExecution) Debug.Log("goto");
             currentStatus = ReplaceFirst(line, "goto ", "");
             statusUpdated = true;
             continuousExecutionTimer = 0;
             if ((!executeContinuously) && (!executeFast)) executeOnce = true;
-            if (executeFast) Update();
             return;
         }
-        else if(line.StartsWith("alg "))
+
+        _gotoLoop = 0;
+
+        if(line.StartsWith("alg "))
         {
-            if (logExecution) UnityEngine.Debug.Log("alg");
+            if (logExecution) Debug.Log("alg");
             preAlgName = algorithmName;
             returnAlg.Add($"{currentLine},,,{algorithmName}");
             algorithmName = ReplaceFirst(line, "alg ", "");
-            algorithmUpdated = true;
+            needAlgorithmUpdate = true;
             statusUpdated = true;
             continuousExecutionTimer = 0;
             if ((!executeContinuously) && (!executeFast)) executeOnce = true;
             if (executeFast) Update();
+            return;
         }
-        else if (line.StartsWith("//") || line.Equals(""))
+
+        if (line.StartsWith("//") || line.Equals(""))
         {
-            if (logExecution) UnityEngine.Debug.Log("comment");
+            if (logExecution) Debug.Log("comment");
             continuousExecutionTimer = 0;
             if ((!executeContinuously) && (!executeFast)) executeOnce = true;
             if (executeFast) Update();
             return;
         }
+
+        if (logExecution) Debug.Log("ì¼ë°˜ ëª…ë ¹");
+        String[] lineSplitWithArrow = line.Split("->");
+        if (lineSplitWithArrow.Length != 2)
+        {
+            HandleError("ì˜ëª»ëœ ì¼ë°˜ ëª…ë ¹ì…ë‹ˆë‹¤.", "ì¼ë°˜ ëª…ë ¹ì— ->ê°€ ì—†ê±°ë‚˜, 2ê°œ ì´ìƒ í¬í•¨ë˜ì–´ ìˆìŠµë‹ˆë‹¤.", currentLine);
+            return;
+        }
+        string condS = lineSplitWithArrow[0];
+
+        string[] param = lineSplitWithArrow[1].Split(",");
+        if (param.Length != 3)
+        {
+            HandleError("ì˜ëª»ëœ ì¼ë°˜ ëª…ë ¹ì…ë‹ˆë‹¤.", "ì¼ë°˜ ëª…ë ¹ì— ë³€ê²½ê°’, í—¤ë”ì´ë™ë°©í–¥, ìƒíƒœì´ë¦„ ì¤‘ í•˜ë‚˜ê°€ ì£¼ì–´ì§€ì§€ ì•Šì•˜ê±°ë‚˜, ê·¸ ì´ì™¸ì˜ ê°’ì´ ì£¼ì–´ì¡ŒìŠµë‹ˆë‹¤.", currentLine);
+            return;
+        }
+        int condition;
+        if (condS.Equals("b")) condition = -1;
         else
         {
-            if (logExecution) UnityEngine.Debug.Log("ÀÏ¹İ ¸í·É");
-            string condS = line.Split("->")[0];
-            string[] param = line.Split("->")[1].Split(",");
-            int condition;
-            if (condS.Equals("b")) condition = -1;
-            else { condition = int.Parse(condS); }
-            int currentContent;
-            try
+            if (!int.TryParse(condS, out condition))
             {
-                currentContent = content[currentIndex];
-            }
-            catch (IndexOutOfRangeException)
-            {
-                HandleError("Çì´õÀÇ À§Ä¡°¡ °¡´ÉÇÑ ¹üÀ§¸¦ ¹ş¾î³µ½À´Ï´Ù.", "Çì´õÀÇ À§Ä¡°¡ 0¿¡¼­ {°İÀÚÀÇ ¼ö-1} À» ¹ş¾î³µ½À´Ï´Ù.\n°İÀÚ ÃÊ±â »óÅÂÀÇ ½ÃÀÛ°ú ³¡¿¡ b¸¦ Ãß°¡ÇÏ´Â °ÍÀÌ µµ¿òµÉ ¼ö ÀÖ½À´Ï´Ù.");
+                HandleError("ì˜ëª»ëœ ì¼ë°˜ ëª…ë ¹ì…ë‹ˆë‹¤.", $"ì£¼ì–´ì§„ ì¡°ê±´ ê°’({condS})ì´ ì˜¬ë°”ë¥¸ ê°’ì´ ì•„ë‹™ë‹ˆë‹¤.", currentLine);
                 return;
             }
-            if (currentContent == condition)
+        }
+        int currentContent;
+        try
+        {
+            currentContent = content[currentIndex];
+        }
+        catch (IndexOutOfRangeException)
+        {
+            HandleError("í—¤ë”ì˜ ìœ„ì¹˜ê°€ ê°€ëŠ¥í•œ ë²”ìœ„ë¥¼ ë²—ì–´ë‚¬ìŠµë‹ˆë‹¤.", "í—¤ë”ì˜ ìœ„ì¹˜ê°€ 0ì—ì„œ {ê²©ìì˜ ìˆ˜-1} ì„ ë²—ì–´ë‚¬ìŠµë‹ˆë‹¤.\nê²©ì ì´ˆê¸° ìƒíƒœì˜ ì‹œì‘ê³¼ ëì— bë¥¼ ì¶”ê°€í•˜ëŠ” ê²ƒì´ ë„ì›€ë  ìˆ˜ ìˆìŠµë‹ˆë‹¤.");
+            return;
+        }
+        if (currentContent == condition)
+        {
+            if (param[0].Equals("b"))
             {
-                if (param[0].Equals("b"))
+                content[currentIndex] = -1;
+            }
+            else
+            {
+                try
                 {
-                    content[currentIndex] = -1;
+                    int changeVal = int.Parse(param[0]);
+                    if (changeVal is < 0 or > 9) throw new FormatException();
+                    content[currentIndex] = changeVal;
                 }
-                else
+                catch (FormatException)
                 {
-                    content[currentIndex] = int.Parse(param[0]);
+                    HandleError("ì˜¬ë°”ë¥¸ ì…ë ¥ì´ ì•„ë‹™ë‹ˆë‹¤!", $"ì¼ë°˜ ëª…ë ¹ì˜ ë³€ê²½ê°’({param[0]})ì´ ì˜¬ë°”ë¥´ì§€ ì•ŠìŠµë‹ˆë‹¤.", currentLine);
+                    return;
                 }
+            }
 
-                if (param[1].ToUpper().Equals("L"))
-                {
-                    currentIndex--;
-                } else if (param[1].ToUpper().Equals("R"))
-                {
-                    currentIndex++;
-                } else
-                {
-                    HandleError("ÀÏ¹İ ¸í·ÉÀÇ Çì´õÀÌµ¿¹æÇâÀÌ Àß¸øµÇ¾ú½À´Ï´Ù.", "Çì´õÀÌµ¿¹æÇâ °ªÀÌ L, R, l, rÀÌ ¾Æ´Õ´Ï´Ù.");
-                }
-
-                statusUpdated = true;
-                currentStatus = param[2];
+            if (param[1].ToUpper().Equals("L"))
+            {
+                currentIndex--;
+            } else if (param[1].ToUpper().Equals("R"))
+            {
+                currentIndex++;
             } else
             {
-                continuousExecutionTimer = 0;
-                if ((!executeContinuously) && (!executeFast)) executeOnce = true;
-                if (executeFast) Update();
+                HandleError("ì¼ë°˜ ëª…ë ¹ì˜ í—¤ë”ì´ë™ë°©í–¥ì´ ì˜ëª»ë˜ì—ˆìŠµë‹ˆë‹¤.", "í—¤ë”ì´ë™ë°©í–¥ ê°’ì´ L, R, l, rì´ ì•„ë‹™ë‹ˆë‹¤.");
+                return;
             }
+
+            statusUpdated = true;
+            currentStatus = param[2];
+        } else
+        {
+            continuousExecutionTimer = 0;
+            if ((!executeContinuously) && (!executeFast)) executeOnce = true;
+            // if (executeFast) Update();
         }
     }
     public static string ReplaceFirst(string source, string find, string replace)
     {
-        int index = source.IndexOf(find);
+        int index = source.IndexOf(find, StringComparison.Ordinal);
         return index < 0 ? source : source[..index] + replace + source[(index + find.Length)..];
     }
+
+    private string _handleErrDesc, _handleErrCause; int _handleErrLineNum;
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    public void HandleError(string errorDescription, string cause, int lineNum)
+    private void HandleError(string errorDescription, string cause, int lineNum)
     {
+        if (executeVeryFast)
+        {
+            errorOnVeryFast = true;
+            isStopped = true;
+            _handleErrDesc = errorDescription;
+            _handleErrCause = cause;
+            _handleErrLineNum = lineNum;
+            return;
+        }
         ErrorManager.errorDescription = errorDescription;
         ErrorManager.cause = cause;
         string contentStr = "";
-        foreach (int i in content)
-        {
-            if (i == -1)
-            {
-                contentStr += "b";
-            }
-            else
-            {
-                contentStr += $"{i}";
-            }
-        }
+        foreach (int i in content) contentStr += i == -1 ? "b" : $"{i}";
+        
         ErrorManager.contentStr = contentStr;
         ErrorManager.algName = algorithmName;
         ErrorManager.algStatus = currentStatus;
         ErrorManager.algLine = (lineNum + 1) + "";
         ErrorManager.algIndex = currentIndex + "";
-        showResult = false;
         SceneManager.LoadScene("ErrorScene");
     }
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    public void HandleError(string errorDescription, string cause)
+    private void HandleError(string errorDescription, string cause)
     {
         HandleError(errorDescription, cause, currentLine);
     }
@@ -301,21 +410,14 @@ public class Main : MonoBehaviour
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    public static void HandleError_NonAlg(string errorDescription, string cause, int[] content)
+    public static void HandleError_NonAlg(string errorDescription, string cause, IEnumerable<int> errContent)
     {
         ErrorManager.errorDescription = errorDescription;
         ErrorManager.cause = cause;
         string contentStr = "";
-        foreach(int i in content)
-        {
-            if(i == -1)
-            {
-                contentStr += "b";
-            } else
-            {
-                contentStr += $"{i}";
-            }
-        }
+        foreach(int i in errContent) 
+            contentStr += i == -1 ? "b" : $"{i}";
+        
         ErrorManager.contentStr = contentStr;
         ErrorManager.algName = "";
         ErrorManager.algStatus = "";

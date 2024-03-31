@@ -10,17 +10,23 @@ public class GridManager : MonoBehaviour
     public int index = 0;
     public GameObject contentUI;
     public GameObject indexUI;
+    private TMP_Text _contentText;
+    private TMP_Text _indexText;
 
     // Update is called once per frame
+    private void Start()
+    {
+        _contentText = contentUI.GetComponent<TMP_Text>();
+        _indexText = indexUI.GetComponent<TMP_Text>();
+    }
+
     void Update()
     {
         try
         {
             content = Main.content[index];
-            if (content == -1) contentUI.GetComponent<TMP_Text>().text = "бр";
-            else contentUI.GetComponent<TMP_Text>().text = $"{content}";
-
-            indexUI.GetComponent<TMP_Text>().text = $"{index}";
+            _contentText.text = content == -1 ? "бр" : $"{content}";
+            _indexText.text = $"{index}";
         } catch (Exception e)
         {
             Main.HandleError_NonAlg(e.ToString(), "internal");

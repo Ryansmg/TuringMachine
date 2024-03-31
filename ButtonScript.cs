@@ -11,6 +11,8 @@ using UnityEngine;
 using UnityEngine.Android;
 using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
+using UnityEngine.UI;
 
 public class ButtonScript : MonoBehaviour
 {
@@ -21,8 +23,8 @@ public class ButtonScript : MonoBehaviour
     public static string preIndex = "";
     public static string preAlg = "";
     public GameObject script;
-    public GameObject AndroidUI;
-    public GameObject WinUI;
+    [FormerlySerializedAs("AndroidUI")] public GameObject androidUI;
+    [FormerlySerializedAs("WinUI")] public GameObject winUI;
     static string helpFilePath;
     static string sumFilePath;
     static string p1FilePath;
@@ -32,6 +34,12 @@ public class ButtonScript : MonoBehaviour
     public static bool isAndroid = false;
     public static bool isAndroidMode = false;
     public static bool isPlatformManual = false;
+    public Button veryFast, fast, continuous, once;
+
+    public void MoveHeader(int diff)
+    {
+        GameObject.Find("Script").GetComponent<Main>().currentIndex += diff;
+    }
     public static void WriteFile(string path, string content)
     {
         if (!isAndroid)
@@ -103,13 +111,13 @@ public class ButtonScript : MonoBehaviour
             {
                 if (isAndroidMode)
                 {
-                    WinUI.SetActive(false);
-                    AndroidUI.SetActive(true);
+                    winUI.SetActive(false);
+                    androidUI.SetActive(true);
                 }
                 else
                 {
-                    WinUI.SetActive(true);
-                    AndroidUI.SetActive(false);
+                    winUI.SetActive(true);
+                    androidUI.SetActive(false);
                 }
             }
             catch (NullReferenceException) { }
@@ -240,11 +248,9 @@ public class ButtonScript : MonoBehaviour
                     script.GetComponent<Main>().executeFast = !script.GetComponent<Main>().executeFast;
                     break;
                 case "result":
-                    script.GetComponent<Main>().executeFast = !script.GetComponent<Main>().executeFast;
-                    script.GetComponent<Main>().showResult = !script.GetComponent<Main>().showResult;
-                    CameraManager.moveCamera = !CameraManager.moveCamera;
+                    script.GetComponent<Main>().executeVeryFast = true;
+                    veryFast.interactable = fast.interactable = continuous.interactable = once.interactable = false;
                     break;
-
             }
         } catch (Exception e) {
             Main.HandleError_NonAlg(e.ToString(), "internal");
@@ -290,11 +296,17 @@ public class ButtonScript : MonoBehaviour
     }
     public void ReturnToStartScene()
     {
+        if (Main.veryFastThread != null)
+        {
+            Main.endVft = true;
+            Main.veryFastThread.Join();
+            Main.veryFastThread = null;
+            if (script != null)
+            {
+                script.GetComponent<Main>().isStopped = true;
+            }
+        }
         SceneManager.LoadScene("StartScene");
-    }
-    public void OpenLogScene()
-    {
-        SceneManager.LoadScene("LogScene");
     }
     public void ChangePlatform()
     {
@@ -302,9 +314,9 @@ public class ButtonScript : MonoBehaviour
         isPlatformManual = true;
         SceneManager.LoadScene("StartScene");
     }
-    public void OpenScene(string name)
+    public void OpenScene(string sceneName)
     {
-        SceneManager.LoadScene(name);
+        SceneManager.LoadScene(sceneName);
     }
 
     static readonly string plus1B64 = "c3RhcnRBdCBhDQovL+ygnOyLnOusuOyXkCDrgpjsmLQNCjphDQowLT4wLFIsYQ0KMS0+MSxSLGENCjItPjIsUixhDQozL" +

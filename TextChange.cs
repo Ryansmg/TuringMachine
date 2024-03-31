@@ -11,15 +11,13 @@ public class TextChange : MonoBehaviour
 
     private void Start()
     {
-        if(gameObject.CompareTag("helpContent"))
-        {
-            byte[] byte64 = Convert.FromBase64String(ButtonScript.helpBase64);
-            string s1 = Encoding.UTF8.GetString(byte64);
-            text.text = s1;
-        }
+        if (!gameObject.CompareTag("helpContent")) return;
+        byte[] byte64 = Convert.FromBase64String(ButtonScript.helpBase64);
+        string s1 = Encoding.UTF8.GetString(byte64);
+        text.text = s1;
     }
     // Update is called once per frame
-    void Update()
+    private void Update()
     {
         try
         {
