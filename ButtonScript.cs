@@ -53,7 +53,7 @@ public class ButtonScript : MonoBehaviour
             writer.Close();
         }
     }
-    void Start()
+    private void Start()
     {
         try
         {
@@ -181,7 +181,7 @@ public class ButtonScript : MonoBehaviour
             //check
             try
             {
-                if ((content[0] != -1) || (content[^1] != -1))
+                if (content[0] != -1 || content[^1] != -1)
                 {
                     Main.HandleError_NonAlg("격자의 값이 잘못 설정되었습니다.", "첫 격자와 마지막 격자의 값이 빈칸(b)이 아닙니다.", content);
                     return;

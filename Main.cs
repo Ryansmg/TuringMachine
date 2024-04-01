@@ -89,6 +89,7 @@ public class Main : MonoBehaviour
         if (!algGenSuccess) return false;
         currentStatus = algorithm.startStatus;
         _loadedAlgorithms.Add(algorithmName, algorithm);
+        needAlgorithmUpdate = false;
         return true;
     }
 
@@ -247,6 +248,80 @@ public class Main : MonoBehaviour
         return true;
     }
     
+    public int gotoLoop;
+    
+    private void Execute()
+    {
+        if(_useStringBasedExecution) { ExecuteStringBased(); return; }
+
+        bool preResult = PreExecute();
+        if (!preResult) return;
+        if (executeVeryFast && endVft) return;
+        
+        algorithm.GetCommand(currentLine).Execute(this);
+    }
+    public static string ReplaceFirst(string source, string find, string replace)
+    {
+        int index = source.IndexOf(find, StringComparison.Ordinal);
+        return index < 0 ? source : source[..index] + replace + source[(index + find.Length)..];
+    }
+
+    private string _handleErrDesc, _handleErrCause; int _handleErrLineNum;
+    /// <summary>
+    /// set cause to "internal" to hide needless UI.
+    /// </summary>
+    public void HandleError(string errorDescription, string cause, int lineNum)
+    {
+        if (executeVeryFast)
+        {
+            errorOnVeryFast = true;
+            isStopped = true;
+            _handleErrDesc = errorDescription;
+            _handleErrCause = cause;
+            _handleErrLineNum = lineNum;
+            return;
+        }
+        ErrorManager.errorDescription = errorDescription;
+        ErrorManager.cause = cause;
+        string contentStr = "";
+        foreach (int i in content) contentStr += i == -1 ? "b" : $"{i}";
+        
+        ErrorManager.contentStr = contentStr;
+        ErrorManager.algName = algorithmName;
+        ErrorManager.algStatus = currentStatus;
+        ErrorManager.algLine = (lineNum + 1) + "";
+        ErrorManager.algIndex = currentIndex + "";
+        SceneManager.LoadScene("ErrorScene");
+    }
+    /// <summary>
+    /// set cause to "internal" to hide needless UI.
+    /// </summary>
+    public void HandleError(string errorDescription, string cause)
+    {
+        HandleError(errorDescription, cause, currentLine);
+    }
+    private static int[] _blank = { };
+    
+    /// <summary>
+    /// set cause to "internal" to hide needless UI.
+    /// </summary>
+    public static void HandleError_NonAlg(string errorDescription, string cause, IEnumerable<int> errContent = null, string algName = "",
+        string algStatus = "", string algLine = "", string algIndex = "")
+    {
+        if (errContent == null) errContent = _blank;
+        ErrorManager.errorDescription = errorDescription;
+        ErrorManager.cause = cause;
+        string contentStr = "";
+        foreach(int i in errContent) 
+            contentStr += i == -1 ? "b" : $"{i}";
+        
+        ErrorManager.contentStr = contentStr;
+        ErrorManager.algName = algName;
+        ErrorManager.algStatus = algStatus;
+        ErrorManager.algLine = algLine;
+        ErrorManager.algIndex = algIndex;
+        SceneManager.LoadScene("ErrorScene");
+    }  
     private bool PreExecuteStringBased()
     {
         //변경 시 알고리즘 로드
@@ -275,20 +350,6 @@ public class Main : MonoBehaviour
         currentLine++;
         return true;
     }
-
-    public int gotoLoop;
-    
-    private void Execute()
-    {
-        if(_useStringBasedExecution) { ExecuteStringBased(); return; }
-
-        bool preResult = PreExecute();
-        if (!preResult) return;
-        if (executeVeryFast && endVft) return;
-        
-        algorithm.GetCommand(currentLine).Execute(this);
-    }
-    
     private void ExecuteStringBased()
     {
         bool preResult = PreExecute();
@@ -442,66 +503,5 @@ public class Main : MonoBehaviour
             if (executeFast) Update();
         }
     }
-    public static string ReplaceFirst(string source, string find, string replace)
-    {
-        int index = source.IndexOf(find, StringComparison.Ordinal);
-        return index < 0 ? source : source[..index] + replace + source[(index + find.Length)..];
-    }
-
-    private string _handleErrDesc, _handleErrCause; int _handleErrLineNum;
-    /// <summary>
-    /// set cause to "internal" to hide needless UI.
-    /// </summary>
-    public void HandleError(string errorDescription, string cause, int lineNum)
-    {
-        if (executeVeryFast)
-        {
-            errorOnVeryFast = true;
-            isStopped = true;
-            _handleErrDesc = errorDescription;
-            _handleErrCause = cause;
-            _handleErrLineNum = lineNum;
-            return;
-        }
-        ErrorManager.errorDescription = errorDescription;
-        ErrorManager.cause = cause;
-        string contentStr = "";
-        foreach (int i in content) contentStr += i == -1 ? "b" : $"{i}";
-        
-        ErrorManager.contentStr = contentStr;
-        ErrorManager.algName = algorithmName;
-        ErrorManager.algStatus = currentStatus;
-        ErrorManager.algLine = (lineNum + 1) + "";
-        ErrorManager.algIndex = currentIndex + "";
-        SceneManager.LoadScene("ErrorScene");
-    }
-    /// <summary>
-    /// set cause to "internal" to hide needless UI.
-    /// </summary>
-    public void HandleError(string errorDescription, string cause)
-    {
-        HandleError(errorDescription, cause, currentLine);
-    }
-    private static int[] _blank = { };
     
-    /// <summary>
-    /// set cause to "internal" to hide needless UI.
-    /// </summary>
-    public static void HandleError_NonAlg(string errorDescription, string cause, IEnumerable<int> errContent = null, string algName = "",
-        string algStatus = "", string algLine = "", string algIndex = "")
-    {
-        if (errContent == null) errContent = _blank;
-        ErrorManager.errorDescription = errorDescription;
-        ErrorManager.cause = cause;
-        string contentStr = "";
-        foreach(int i in errContent) 
-            contentStr += i == -1 ? "b" : $"{i}";
-        
-        ErrorManager.contentStr = contentStr;
-        ErrorManager.algName = algName;
-        ErrorManager.algStatus = algStatus;
-        ErrorManager.algLine = algLine;
-        ErrorManager.algIndex = algIndex;
-        SceneManager.LoadScene("ErrorScene");
-    }
 }
