@@ -298,13 +298,13 @@ public class ButtonScript : MonoBehaviour
     {
         if (Main.veryFastThread != null)
         {
-            Main.endVft = true;
-            Main.veryFastThread.Join();
-            Main.veryFastThread = null;
             if (script != null)
             {
                 script.GetComponent<Main>().isStopped = true;
             }
+            Main.endVft = true;
+            Main.veryFastThread.Join();
+            Main.veryFastThread = null;
         }
         SceneManager.LoadScene("StartScene");
     }

@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.Serialization;
 using UnityEngine.UI;
 using Debug = UnityEngine.Debug;
 
@@ -13,7 +14,8 @@ public class Main : MonoBehaviour
     public static int[] content = { -1, 3, 2, -1, 1, 1, -1 }; //this given value is a placeholder
     public static int startIndex = 1; //this given value is a placeholder
     public static string algorithmName = "sum"; //this given value is a placeholder
-    public static string[] algorithm;
+    public static string[] algorithmStringBased;
+    public static Algorithm algorithm;
 
     public string preAlgName = "placeHolder";
     public bool preAlgNameSet;
@@ -32,6 +34,8 @@ public class Main : MonoBehaviour
     public bool executeFast;
     public bool executeVeryFast;
     public bool errorOnVeryFast;
+
+    private readonly bool _useStringBasedExecution = false; //very slow
     
     /// <summary>
     /// preset
@@ -43,16 +47,52 @@ public class Main : MonoBehaviour
     /// <summary>
     /// add "{returnIndex},{returnAlgorithmName}"
     /// </summary>
-    public List<string> returnAlg = new();
+    public List<string> returnAlgStringBased = new();
+
+    public List<KeyValuePair<int, string>> returnAlg;
 
     public bool openPersistentDataPath;
-    public string appPersDataPath;
+    public string appPersistentDataPath;
 
     public static bool logExecution = false;
 
     public Button leftButton, rightButton;
-    private Dictionary<string, string[]> _loadedAlgorithms;
-    private void LoadAlgorithm()
+    private Dictionary<string, string[]> _loadedAlgorithmsStringBased;
+    private Dictionary<string, Algorithm> _loadedAlgorithms;
+    private bool LoadAlgorithm()
+    {
+        if(_useStringBasedExecution) { LoadAlgorithm_StringBased(); return true; }
+        if (!preAlgNameSet)
+        {
+            preAlgNameSet = true;
+            preAlgName = algorithmName;
+        }
+
+        if (_loadedAlgorithms.TryGetValue(algorithmName, out algorithm))
+        {
+            currentStatus = algorithm.startStatus;
+            needAlgorithmUpdate = false;
+            return true;
+        }
+        
+        string algorithmFilePath = appPersistentDataPath + $"/algorithms/{algorithmName}.txt";
+        if (!File.Exists(algorithmFilePath))
+        {
+            string temp = algorithmName;
+            algorithmName = preAlgName;
+            HandleError($"알고리즘({temp})을 찾을 수 없습니다.",
+                "이름을 잘못 입력했거나, 알고리즘을 잘못된 방법으로 생성했습니다. 도움말을 참고하세요.");
+            return false;
+        }
+        string[] algLines = File.ReadAllText(algorithmFilePath).Replace("\r", "").Split("\n");
+        algorithm = new Algorithm(algLines, algorithmName, out bool algGenSuccess);
+        if (!algGenSuccess) return false;
+        currentStatus = algorithm.startStatus;
+        _loadedAlgorithms.Add(algorithmName, algorithm);
+        return true;
+    }
+
+    private void LoadAlgorithm_StringBased()
     {
         if (!preAlgNameSet)
         {
@@ -60,14 +100,14 @@ public class Main : MonoBehaviour
             preAlgName = algorithmName;
         }
         //Debug.Log($"Trying to load from loadedAlgorithms: {algorithmName}");
-        if (_loadedAlgorithms.TryGetValue(algorithmName, out algorithm))
+        if (_loadedAlgorithmsStringBased.TryGetValue(algorithmName, out algorithmStringBased))
         {
             //Debug.Log($"Loaded {algorithmName}.");
-            currentStatus = ReplaceFirst(algorithm[0], "startAt ", "");
+            currentStatus = ReplaceFirst(algorithmStringBased[0], "startAt ", "");
             needAlgorithmUpdate = false;
             return;
         }
-        string algorithmFilePath = appPersDataPath + $"/algorithms/{algorithmName}.txt";
+        string algorithmFilePath = appPersistentDataPath + $"/algorithms/{algorithmName}.txt";
         if (!File.Exists(algorithmFilePath))
         {
             string temp = algorithmName;
@@ -76,8 +116,8 @@ public class Main : MonoBehaviour
                 "이름을 잘못 입력했거나, 알고리즘을 잘못된 방법으로 생성했습니다. 도움말을 참고하세요.");
             return;
         }
-        algorithm = File.ReadAllText(algorithmFilePath).Replace("\r", "").Split("\n");
-        if (algorithm[0].StartsWith("startAt ")) { currentStatus = ReplaceFirst(algorithm[0], "startAt ", ""); }
+        algorithmStringBased = File.ReadAllText(algorithmFilePath).Replace("\r", "").Split("\n");
+        if (algorithmStringBased[0].StartsWith("startAt ")) { currentStatus = ReplaceFirst(algorithmStringBased[0], "startAt ", ""); }
         else
         {
             currentLine = 0;
@@ -85,7 +125,7 @@ public class Main : MonoBehaviour
             HandleError("startAt 키워드가 존재하지 않습니다.", "startAt을 입력하지 않았거나, 첫 줄에 주석이 있습니다.\n첫 줄에는 항상 startAt 키워드가 있어야 합니다.");
             return;
         }
-        _loadedAlgorithms.Add(algorithmName, (string[]) algorithm.Clone());
+        _loadedAlgorithmsStringBased.Add(algorithmName, (string[]) algorithmStringBased.Clone());
         needAlgorithmUpdate = false;
     }
 
@@ -99,9 +139,11 @@ public class Main : MonoBehaviour
         _evfThreadGen = false;
         endVft = false;
         continuousExecutionTimer = continuousExecutionTime;
-        appPersDataPath = Application.persistentDataPath;
-        _loadedAlgorithms = new();
-        _gotoLoop = 0;
+        appPersistentDataPath = Application.persistentDataPath;
+        if(_useStringBasedExecution) _loadedAlgorithmsStringBased = new Dictionary<string, string[]>();
+        _loadedAlgorithms = new Dictionary<string, Algorithm>();
+        gotoLoop = 0;
+        returnAlg = new List<KeyValuePair<int, string>>();
         for(int i = 0; i < content.Length; i++)
         {
             GameObject newGrid = Instantiate(gridPrefab);
@@ -131,7 +173,7 @@ public class Main : MonoBehaviour
 
     private void Update()
     {
-        if(openPersistentDataPath) { openPersistentDataPath = false; Process.Start(appPersDataPath); }
+        if(openPersistentDataPath) { openPersistentDataPath = false; Process.Start(appPersistentDataPath); }
         if (errorOnVeryFast)
         {
             errorOnVeryFast = false;
@@ -177,6 +219,36 @@ public class Main : MonoBehaviour
     /// <returns>If PreExecution was successful (== Execute() is available)</returns>
     private bool PreExecute()
     {
+        if (_useStringBasedExecution) { return PreExecuteStringBased(); }
+
+        bool algorithmLoadSuccess = true;
+        if (needAlgorithmUpdate) algorithmLoadSuccess = LoadAlgorithm();
+        if (!algorithmLoadSuccess) return false;
+        if (statusUpdated)
+        {
+            if (!preStatusSet)
+            {
+                preStatusSet = true;
+                preStatus = currentStatus;
+            }
+            
+            int errorDisplayLine = currentLine;
+            string errorDisplayStatus = currentStatus;
+            if (!algorithm.statusIndexes.TryGetValue(currentStatus, out currentLine))
+            {
+                currentStatus = preStatus;
+                HandleError($"상태({errorDisplayStatus})를 찾을 수 없습니다.","없는 상태나 다른 알고리즘의 상태로 이동하려고 시도했습니다.", errorDisplayLine); 
+                return false; 
+            }
+            statusUpdated = false;
+        }
+
+        currentLine++;
+        return true;
+    }
+    
+    private bool PreExecuteStringBased()
+    {
         //변경 시 알고리즘 로드
         if (needAlgorithmUpdate) LoadAlgorithm();
 
@@ -190,7 +262,7 @@ public class Main : MonoBehaviour
             }
             int errorDisplayLine = currentLine;
             currentLine = 0;
-            try { while (!algorithm[currentLine].Equals($":{currentStatus}")) currentLine++; }
+            try { while (!algorithmStringBased[currentLine].Equals($":{currentStatus}")) currentLine++; }
             catch (IndexOutOfRangeException) { 
                 string temp = currentStatus;
                 currentStatus = preStatus;
@@ -204,14 +276,25 @@ public class Main : MonoBehaviour
         return true;
     }
 
-    private int _gotoLoop = 0;
-
+    public int gotoLoop;
+    
     private void Execute()
+    {
+        if(_useStringBasedExecution) { ExecuteStringBased(); return; }
+
+        bool preResult = PreExecute();
+        if (!preResult) return;
+        if (executeVeryFast && endVft) return;
+        
+        algorithm.GetCommand(currentLine).Execute(this);
+    }
+    
+    private void ExecuteStringBased()
     {
         bool preResult = PreExecute();
         if (!preResult) return;
         if (executeVeryFast && endVft) return;
-        String line = algorithm[currentLine];
+        String line = algorithmStringBased[currentLine];
 
         if (line.Equals("stop"))
         {
@@ -223,16 +306,16 @@ public class Main : MonoBehaviour
         if (line.Equals("end"))
         {
             if (logExecution) Debug.Log("end");
-            if (returnAlg.Count == 0)
+            if (returnAlgStringBased.Count == 0)
             {
                 isStopped = true;
                 return;
             }
 
             needAlgorithmUpdate = true;
-            currentLine = int.Parse(returnAlg.ToArray()[returnAlg.Count - 1].Split(",,,")[0]);
-            algorithmName = returnAlg.ToArray()[returnAlg.Count - 1].Split(",,,")[1];
-            returnAlg.RemoveAt(returnAlg.Count - 1);
+            currentLine = int.Parse(returnAlgStringBased.ToArray()[returnAlgStringBased.Count - 1].Split(",,,")[0]);
+            algorithmName = returnAlgStringBased.ToArray()[returnAlgStringBased.Count - 1].Split(",,,")[1];
+            returnAlgStringBased.RemoveAt(returnAlgStringBased.Count - 1);
             continuousExecutionTimer = 0;
             if (!executeContinuously && !executeFast) executeOnce = true;
             if (executeFast) Update();
@@ -241,8 +324,8 @@ public class Main : MonoBehaviour
         
         if (line.StartsWith("goto "))
         {
-            _gotoLoop++;
-            if (_gotoLoop > 2000000)
+            gotoLoop++;
+            if (gotoLoop > 2000000)
             {
                 HandleError("반복이 종료되지 않음을 감지했습니다.",
                     "goto 코드가 무한히 실행되고 있거나 연속해서 너무 많이 (200만 번 이상) 실행되었습니다. 빠른 실행을 사용하지 않으면 문제가 해결될 수도 있습니다.");
@@ -257,13 +340,13 @@ public class Main : MonoBehaviour
             return;
         }
 
-        _gotoLoop = 0;
+        gotoLoop = 0;
 
         if(line.StartsWith("alg "))
         {
             if (logExecution) Debug.Log("alg");
             preAlgName = algorithmName;
-            returnAlg.Add($"{currentLine},,,{algorithmName}");
+            returnAlgStringBased.Add($"{currentLine},,,{algorithmName}");
             algorithmName = ReplaceFirst(line, "alg ", "");
             needAlgorithmUpdate = true;
             statusUpdated = true;
@@ -283,7 +366,7 @@ public class Main : MonoBehaviour
         }
 
         if (logExecution) Debug.Log("일반 명령");
-        String[] lineSplitWithArrow = line.Split("->");
+        string[] lineSplitWithArrow = line.Split("->");
         if (lineSplitWithArrow.Length != 2)
         {
             HandleError("잘못된 일반 명령입니다.", "일반 명령에 ->가 없거나, 2개 이상 포함되어 있습니다.", currentLine);
@@ -356,7 +439,7 @@ public class Main : MonoBehaviour
         {
             continuousExecutionTimer = 0;
             if ((!executeContinuously) && (!executeFast)) executeOnce = true;
-            // if (executeFast) Update();
+            if (executeFast) Update();
         }
     }
     public static string ReplaceFirst(string source, string find, string replace)
@@ -369,7 +452,7 @@ public class Main : MonoBehaviour
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    private void HandleError(string errorDescription, string cause, int lineNum)
+    public void HandleError(string errorDescription, string cause, int lineNum)
     {
         if (executeVeryFast)
         {
@@ -395,23 +478,19 @@ public class Main : MonoBehaviour
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    private void HandleError(string errorDescription, string cause)
+    public void HandleError(string errorDescription, string cause)
     {
         HandleError(errorDescription, cause, currentLine);
     }
+    private static int[] _blank = { };
+    
     /// <summary>
     /// set cause to "internal" to hide needless UI.
     /// </summary>
-    public static void HandleError_NonAlg(string errorDescription, string cause)
+    public static void HandleError_NonAlg(string errorDescription, string cause, IEnumerable<int> errContent = null, string algName = "",
+        string algStatus = "", string algLine = "", string algIndex = "")
     {
-        int[] blank = { };
-        HandleError_NonAlg(errorDescription, cause, blank);
-    }
-    /// <summary>
-    /// set cause to "internal" to hide needless UI.
-    /// </summary>
-    public static void HandleError_NonAlg(string errorDescription, string cause, IEnumerable<int> errContent)
-    {
+        if (errContent == null) errContent = _blank;
         ErrorManager.errorDescription = errorDescription;
         ErrorManager.cause = cause;
         string contentStr = "";
@@ -419,10 +498,10 @@ public class Main : MonoBehaviour
             contentStr += i == -1 ? "b" : $"{i}";
         
         ErrorManager.contentStr = contentStr;
-        ErrorManager.algName = "";
-        ErrorManager.algStatus = "";
-        ErrorManager.algLine = "";
-        ErrorManager.algIndex = "";
+        ErrorManager.algName = algName;
+        ErrorManager.algStatus = algStatus;
+        ErrorManager.algLine = algLine;
+        ErrorManager.algIndex = algIndex;
         SceneManager.LoadScene("ErrorScene");
     }
 }
