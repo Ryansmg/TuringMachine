@@ -15,6 +15,10 @@ public class ErrorManager : MonoBehaviour
 
     private void Start()
     {
+        if (ButtonScript.returnToAchieveScene && !cause.Equals("internal"))
+        {
+            cause = contentStr = algLine = algStatus = algIndex = "(숨겨짐)";
+        }
         GameObject.Find("ErrorDescription").GetComponent<TMP_Text>().text = $"오류 설명: {errorDescription}";
         GameObject.Find("Cause").GetComponent<TMP_Text>().text = $"원인(추정): {cause}";
         GameObject.Find("Content").GetComponent<TMP_Text>().text = $"격자 상태: {contentStr}";

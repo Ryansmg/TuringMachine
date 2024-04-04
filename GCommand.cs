@@ -239,6 +239,7 @@ public class GCommand
     {
         main.continuousExecutionTimer = 0;
         if (!main.executeContinuously && !main.executeFast) main.executeOnce = true;
+        if(main.executeFast) main.Execute();
         main.gotoLoop = 0;
     }
 
@@ -278,6 +279,7 @@ public class NormalCommand : GCommand
         {
             main.continuousExecutionTimer = 0;
             if (!main.executeContinuously && !main.executeFast) main.executeOnce = true;
+            if(main.executeFast) main.Execute();
             return;
         }
         Main.content[main.currentIndex] = edit;
@@ -309,6 +311,7 @@ public class EndCommand : GCommand
         main.returnAlg.RemoveAt(main.returnAlg.Count-1);
         main.continuousExecutionTimer = 0;
         if (!main.executeContinuously && !main.executeFast) main.executeOnce = true;
+        if(main.executeFast) main.Execute();
     }
 }
 
@@ -335,6 +338,7 @@ public class GotoCommand : GCommand
         main.statusUpdated = true;
         main.continuousExecutionTimer = 0;
         if (!main.executeContinuously && !main.executeFast) main.executeOnce = true;
+        if(main.executeFast) main.Execute();
     }
 }
 
@@ -350,13 +354,24 @@ public class AlgCommand : GCommand
     public override void Execute(Main main)
     {
         main.gotoLoop = 0;
+        if (!Main.allowAlgCommand)
+        {
+            main.isStopped = true;
+            Main.achieveConditionMet = false;
+            return;
+        }
         main.preAlgName = Main.algorithmName;
         main.returnAlg.Add(new KeyValuePair<int, string>(main.currentLine, Main.algorithmName));
         Main.algorithmName = algName;
         main.needAlgorithmUpdate = true;
         main.statusUpdated = true;
+        TextChange.algPath = "";
+        foreach (var alg in main.returnAlg) TextChange.algPath += alg.Value + "/";
+        TextChange.algPath += algName;
+        if (TextChange.algPath.Length > 38) TextChange.algPath = TextChange.algPath[..34] + "...";
         main.continuousExecutionTimer = 0;
         if (!main.executeContinuously && !main.executeFast) main.executeOnce = true;
+        if(main.executeFast) main.Execute();
     }
 }
 

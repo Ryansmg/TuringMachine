@@ -13,6 +13,8 @@ using UnityEngine.Networking;
 using UnityEngine.SceneManagement;
 using UnityEngine.Serialization;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
+using Random = UnityEngine.Random;
 
 public class ButtonScript : MonoBehaviour
 {
@@ -35,7 +37,12 @@ public class ButtonScript : MonoBehaviour
     public static bool isAndroidMode = false;
     public static bool isPlatformManual = false;
     public Button veryFast, fast, continuous, once;
-
+    public bool isAchieveSceneManager;
+    public static bool needAchieveTest = false;
+    [FormerlySerializedAs("achieveStartButton")] public Button[] banWhenAchieve;
+    public TMP_InputField[] banWhenAchieve2;
+    public TMP_InputField achieveSelect;
+    private static string _preAchSelect = "";
     public void MoveHeader(int diff)
     {
         GameObject.Find("Script").GetComponent<Main>().currentIndex += diff;
@@ -146,10 +153,209 @@ public class ButtonScript : MonoBehaviour
             startIndexInput.GetComponent<TMP_InputField>().text = preIndex;
         }
         catch (UnassignedReferenceException) { /* StartScene 이외의 Scene에서는 에러가 발생합니다. */ }
+        catch (NullReferenceException) { /* StartScene 이외의 Scene에서는 에러가 발생합니다. */ }
+
+        if (isAchieveSceneManager && needAchieveTest)
+        {
+            algorithmInput.GetComponent<TMP_InputField>().text = preAlg;
+            achieveSelect.text = _preAchSelect;
+            needAchieveTest = false;
+            StartAchieve();
+            foreach(var achbutton in banWhenAchieve) achbutton.interactable = false;
+            foreach (var achIn in banWhenAchieve2) achIn.interactable = false;
+        } else if (isAchieveSceneManager)
+        {
+            Main.successCnt = 0;
+            achieveSelect.text = _preAchSelect;
+            foreach(var achbutton in banWhenAchieve) achbutton.interactable = true;
+            foreach (var achIn in banWhenAchieve2) achIn.interactable = true;
+        }
+    }
+
+    public static int[] achieveRequireCnts = { 43, 47, 37, 30 };
+    private static readonly int[][]
+        AchievePresets1 = { new[] { 0, 3, 0, 16, 512, 1432, 999, 100000 }, new[]{ 0, 1234, 2984 }, new[] { 0, 1, 145723 }, new[]{0, 0, 1, 0, 47, 314, 627} }, 
+        AchievePresets2 = { new[] { 0, 0, 5, 128, 64, 999, 1432, 149755 }, new[]{ 0, 1234, 2738 }, new[] { 0            }, new[]{0, 1, 0, 35, 0, 627, 314} };
+    public void StartAchieve()
+    {
+        returnToAchieveScene = true;
+        Main.allowAlgCommand = true;
+        try
+        {
+            preAlg = algorithmInput.GetComponent<TMP_InputField>().text;
+            _preAchSelect = achieveSelect.text;
+            int selectedAchievement;
+            try
+            {
+                selectedAchievement = int.Parse(_preAchSelect);
+                if (selectedAchievement > achieveRequireCnts.Length) return;
+            } catch (ArgumentNullException) { return; }
+            catch (ArgumentException) { return; }
+            catch (FormatException) { return; }
+            catch (OverflowException) { return; }
+
+            selectedAchievement--;
+            string inputAlg = preAlg;
+            int[] outArr;
+            int rand1, rand2, anslen;
+            string str1, str2;
+            string presetContent, presetIndex;
+            switch (selectedAchievement)
+            {
+                case 0:
+                    Main.allowAlgCommand = false;
+                    if (Main.successCnt < AchievePresets1[0].Length)
+                    {
+                        rand1 = AchievePresets1[0][Main.successCnt];
+                        rand2 = AchievePresets2[0][Main.successCnt];
+                    }
+                    else
+                    {
+                        rand1 = Random.Range(0, 75000);
+                        rand2 = Random.Range(0, 75000);
+                    }
+
+                    outArr = new[] { rand1 + rand2, -1 };
+                    anslen = (rand1 + rand2 + "").Length;
+                    str1 = rand1 + ""; str2 = rand2 + "";
+                    while (str1.Length < anslen) str1 = "0" + str1;
+                    while (str2.Length < anslen) str2 = "0" + str2;
+                    presetIndex = "1";
+                    presetContent = $"b{str1}b{str2}b";
+                    break;
+                case 1:
+                    if (Main.successCnt < AchievePresets1[1].Length)
+                    {
+                        rand1 = AchievePresets1[1][Main.successCnt];
+                        rand2 = AchievePresets2[1][Main.successCnt];
+                    }
+                    else
+                    {
+                        rand1 = Random.Range(0, 75000);
+                        rand2 = Random.Range(0, 75000);
+                        if (rand1 < rand2) (rand1, rand2) = (rand2, rand1);
+                    }
+
+                    outArr = new[] { rand1 - rand2, -1 };
+                    presetIndex = "1";
+                    presetContent = $"b{rand1}b{rand2}b";
+                    break;
+                case 2:
+                    if (Main.successCnt < AchievePresets1[2].Length)
+                    {
+                        rand1 = AchievePresets1[2][Main.successCnt];    
+                    }
+                    else
+                    {
+                        rand1 = Random.Range(0, 50000);
+                    }
+
+                    outArr = new[] { rand1, 0, rand1 };
+                    string zeros1 = "";
+                    int rand1Len = (rand1 + "").Length;
+                    while (zeros1.Length < rand1Len) zeros1 += '0';
+                    presetIndex = "1";
+                    presetContent = $"b{zeros1}b{rand1}b{zeros1}b";
+                    break;
+                case 3:
+                    if (Main.successCnt < AchievePresets1[3].Length)
+                    {
+                        rand1 = AchievePresets1[3][Main.successCnt];
+                        rand2 = AchievePresets2[3][Main.successCnt];
+                    }
+                    else
+                    {
+                        rand1 = Random.Range(1, 275);
+                        rand2 = Random.Range(1, 275);
+                    }
+                    anslen = (rand1 * rand2 + "").Length;
+                    string zeros = "";
+                    for (int i = 0; i < anslen; i++) zeros += "0";
+                    presetContent = $"b{zeros}b{zeros}b{rand1}b{rand2}b";
+                    presetIndex = "1";
+                    outArr = new[]{rand1*rand2, -1, -1, -1};
+                    break;
+                default:
+                    return;
+            }
+            Main.answer = outArr;
+            Main.requiredSuccess = achieveRequireCnts[selectedAchievement];
+            preContent = presetContent;
+            preIndex = presetIndex;
+
+            string contentstr = presetContent;
+            int[] content = new int[contentstr.Length];
+            try
+            {
+                for (int i = 0; i < contentstr.Length; i++)
+                {
+                    if (contentstr[i].Equals('b'))
+                    {
+                        content[i] = -1;
+                    }
+                    else
+                    {
+                        content[i] = int.Parse($"{contentstr[i]}");
+                    }
+                }
+            }
+            catch (FormatException)
+            {
+                Main.HandleError_NonAlg("문자열을 정수로 변환하지 못했습니다.", "격자에 잘못된 값이 입력되었습니다. 격자의 값은 0~9와 b(빈칸)만 가능합니다.");
+                return;
+            }
+
+            //check
+            try
+            {
+                if (content[0] != -1 || content[^1] != -1)
+                {
+                    Main.HandleError_NonAlg("격자의 값이 잘못 설정되었습니다.", "첫 격자와 마지막 격자의 값이 빈칸(b)이 아닙니다.", content);
+                    return;
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                Main.HandleError_NonAlg("격자의 값을 입력하지 않았습니다.", "격자의 값을 입력하지 않았습니다.");
+                return;
+            }
+            string algorithmFilePath = Application.persistentDataPath + $"/algorithms/{inputAlg}.txt";
+            if (!File.Exists(algorithmFilePath))
+            {
+                Main.HandleError_NonAlg($"알고리즘({inputAlg})을 찾을 수 없습니다.",
+                    "이름을 잘못 입력했거나, 알고리즘을 잘못된 방법으로 생성했을 수 있습니다. 도움말을 참고하세요.");
+                return;
+            }
+            try
+            {
+                if ((int.Parse(presetIndex) >= content.Length) || (int.Parse(presetIndex) < 0))
+                {
+                    Main.HandleError_NonAlg("헤더의 초기 위치가 가능한 범위를 벗어났습니다.", "번호를 잘못 입력했거나, 첫 격자의 번호가 0임을 고려하지 않았을 가능성이 높습니다.");
+                    return;
+                }
+            }
+            catch (OverflowException)
+            {
+                Main.HandleError_NonAlg("헤더의 초기 위치가 가능한 범위를 벗어났습니다.", $"헤더의 위치 값이 {int.MaxValue}보다 크거나 \n{int.MinValue}보다 작습니다.", content);
+                return;
+            }
+
+            //start
+            Main.content = content;
+            Main.startIndex = int.Parse(presetIndex);
+            Main.algorithmName = inputAlg;
+            Main.isAchieveMode = true;
+            SceneManager.LoadScene("AchieveTest", LoadSceneMode.Additive);
+        } catch(Exception e)
+        {
+            Main.HandleError_NonAlg(e.ToString(), "internal");
+        }
     }
 
     public void StartAlgorithm()
     {
+        Main.allowAlgCommand = true;
+        returnToAchieveScene = false;
         try
         {
             preAlg = algorithmInput.GetComponent<TMP_InputField>().text;
@@ -217,6 +423,7 @@ public class ButtonScript : MonoBehaviour
             Main.content = content;
             Main.startIndex = int.Parse(startIndexInput.GetComponent<TMP_InputField>().text);
             Main.algorithmName = algorithmInput.GetComponent<TMP_InputField>().text;
+            Main.isAchieveMode = false;
             SceneManager.LoadScene("ExecuteScene");
         } catch(Exception e)
         {
@@ -294,6 +501,19 @@ public class ButtonScript : MonoBehaviour
             Main.HandleError_NonAlg(e.ToString(), "internal");
         }
     }
+
+    public void FromAchieveSceneToStartScene()
+    {
+        preContent = "";
+        preIndex = "";
+        OpenScene("StartScene");
+    }
+    public static bool returnToAchieveScene = false;
+    public void ReturnToStartOrAchieveScene()
+    {
+        if(returnToAchieveScene) ReturnToAchieveScene();
+        else ReturnToStartScene();
+    }
     public void ReturnToStartScene()
     {
         if (Main.veryFastThread != null)
@@ -308,14 +528,38 @@ public class ButtonScript : MonoBehaviour
         }
         SceneManager.LoadScene("StartScene");
     }
+
+    public void ReturnToAchieveScene()
+    {
+        if (Main.veryFastThread != null)
+        {
+            if (script != null)
+            {
+                script.GetComponent<Main>().isStopped = true;
+            }
+
+            TextChange.achieveTestResult = "채점을 중단했습니다.";
+            Main.endVft = true;
+            needAchieveTest = false;
+            Main.veryFastThread.Join();
+            Main.veryFastThread = null;
+        }
+        SceneManager.LoadScene("AchieveScene");
+    }
     public void ChangePlatform()
     {
         isAndroidMode = !isAndroidMode;
         isPlatformManual = true;
-        SceneManager.LoadScene("StartScene");
+        SceneManager.LoadScene(returnToAchieveScene ? "AchieveScene" : "StartScene");
     }
     public void OpenScene(string sceneName)
     {
+        returnToAchieveScene = sceneName switch
+        {
+            "AchieveScene" => true,
+            "StartScene" => false,
+            _ => returnToAchieveScene
+        };
         SceneManager.LoadScene(sceneName);
     }
 

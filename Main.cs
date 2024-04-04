@@ -59,6 +59,13 @@ public class Main : MonoBehaviour
     public Button leftButton, rightButton;
     private Dictionary<string, string[]> _loadedAlgorithmsStringBased;
     private Dictionary<string, Algorithm> _loadedAlgorithms;
+    
+    //achievement
+    public static int[] answer;
+    public static int successCnt;
+    public static int requiredSuccess;
+    public static bool isAchieveMode, allowAlgCommand, achieveConditionMet;
+    
     private bool LoadAlgorithm()
     {
         if(_useStringBasedExecution) { LoadAlgorithm_StringBased(); return true; }
@@ -132,6 +139,7 @@ public class Main : MonoBehaviour
 
     private void Start()
     {
+        achieveConditionMet = true;
         currentIndex = startIndex;
         currentLine = 0;
         isStopped = false;
@@ -144,7 +152,13 @@ public class Main : MonoBehaviour
         if(_useStringBasedExecution) _loadedAlgorithmsStringBased = new Dictionary<string, string[]>();
         _loadedAlgorithms = new Dictionary<string, Algorithm>();
         gotoLoop = 0;
+        TextChange.algPath = algorithmName;
         returnAlg = new List<KeyValuePair<int, string>>();
+        if (isAchieveMode)
+        {
+            executeVeryFast = true;
+            TextChange.achieveTestResult = $"채점 중: {Math.Round(successCnt/(double)requiredSuccess*100.0)}%";
+        }
         for(int i = 0; i < content.Length; i++)
         {
             GameObject newGrid = Instantiate(gridPrefab);
@@ -184,6 +198,48 @@ public class Main : MonoBehaviour
         }
         if (executeVeryFast && endVft) return;
         if(isStopped) {
+            if (isAchieveMode)
+            {
+                if (!achieveConditionMet)
+                {
+                    TextChange.achieveTestResult = "조건을 만족하지 않았습니다";
+                    SceneManager.LoadScene("AchieveScene");
+                    return;
+                }
+                List<long> output = new();
+                foreach (int i in content)
+                {
+                    if (i == -1)
+                    {
+                        output.Add(0);
+                        continue;
+                    }
+                    output[^1] *= 10;
+                    output[^1] += i;
+                }
+
+                for (int i = 0; i < answer.Length; i++)
+                {
+                    if (answer[i] == -1) continue;
+                    if (answer[i] != output[i])
+                    {
+                        TextChange.achieveTestResult = "틀렸습니다";
+                        SceneManager.LoadScene("AchieveScene");
+                        return;
+                    }
+                }
+                
+                successCnt++;
+
+                if (successCnt >= requiredSuccess)
+                {
+                    TextChange.achieveTestResult = "맞았습니다!!";
+                    SceneManager.LoadScene("AchieveScene");
+                    return;
+                }
+                ButtonScript.needAchieveTest = true;
+                SceneManager.LoadScene("AchieveScene");
+            }
             leftButton.interactable = rightButton.interactable = true;
             return;
         }
@@ -250,7 +306,7 @@ public class Main : MonoBehaviour
     
     public int gotoLoop;
     
-    private void Execute()
+    public void Execute()
     {
         if(_useStringBasedExecution) { ExecuteStringBased(); return; }
 

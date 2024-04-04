@@ -8,6 +8,8 @@ public class TextChange : MonoBehaviour
     public TMP_Text text;
     public GameObject script;
     public Main main;
+    public static string achieveTestResult = "";
+    public static string algPath;
 
     private void Start()
     {
@@ -29,11 +31,15 @@ public class TextChange : MonoBehaviour
             }
             if (gameObject.name.Equals("2"))
             {
-                text.text = $"알고리즘: {Main.algorithmName}";
+                text.text = $"알고리즘: {algPath}";
             }
             if (gameObject.name.Equals("3"))
             {
                 text.text = $"상태: {main.currentStatus}";
+            }
+            if (gameObject.name.Equals("4"))
+            {
+                text.text = achieveTestResult;
             }
         } catch (Exception e)
         {
